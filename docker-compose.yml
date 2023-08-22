@@ -10,10 +10,8 @@ services:
       - DATABASE_URL=jdbc:postgresql://db-postgresql:5432/rinhadb
       - DATABASE_USERNAME=rinha
       - DATABASE_PASSWORD=rinha123
-      - REDIS_HOST=cache
     depends_on:
       - db-postgresql
-      - cache
     ulimits:
       nofile:
         soft: 1000000
@@ -21,7 +19,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.8'
+#          cpus: '0.4'
           memory: '1.25GB'
     networks:
       - app-network
@@ -34,10 +32,8 @@ services:
       - DATABASE_URL=jdbc:postgresql://db-postgresql:5432/rinhadb
       - DATABASE_USERNAME=rinha
       - DATABASE_PASSWORD=rinha123
-      - REDIS_HOST=cache
     depends_on:
       - db-postgresql
-      - cache
     ulimits:
       nofile:
         soft: 1000000
@@ -45,7 +41,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.8'
+#          cpus: '0.4'
           memory: '1.25GB'
     networks:
         - app-network
@@ -53,7 +49,7 @@ services:
   nginx:
     image: nginx:latest
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - spring-api1
       - spring-api2
@@ -67,24 +63,13 @@ services:
           cpus: '0.2'
           memory: '0.25GB'
 
-  cache:
-    hostname: cache
-    image: redis:latest
-    command: ["redis-server", "--appendonly", "no", "--save ''"]
-    ports:
-      - '6379:6379'
-    deploy:
-      resources:
-        limits:
-          cpus: '0.05'
-          memory: '0.25GB'
-    networks:
-      - app-network
-
   db-postgresql:
     image: postgres:latest
-    command: postgres -c 'max_connections=600'
-    hostname: db
+    command: "postgres -c max_connections=200 -c shared_buffers=256MB -c synchronous_commit=off -c fsync=off -c full_page_writes=off -c config_file=/etc/postgresql.conf"
+    hostname: db-postgresql
+    volumes:
+      - ./config/postgresql.conf:/etc/postgresql.conf
+      - ./config/ddl.sql:/docker-entrypoint-initdb.d/ddl.sql
     environment:
       - POSTGRES_PASSWORD=rinha123
       - POSTGRES_USER=rinha
@@ -94,8 +79,13 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.05'
           memory: '0.5GB'
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -h db-postgresql" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
     networks:
       - app-network
 
